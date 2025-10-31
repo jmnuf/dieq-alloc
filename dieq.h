@@ -35,6 +35,8 @@ typedef struct {
 
 bool dieq_arena_init(Dieq_Arena *arena, dieq_uisz capacity);
 
+bool dieq_arena_init_from_buffer(Dieq_Arena *arena, void *buf, dieq_uisz buf_len);
+
 void dieq_arena_deinit(Dieq_Arena *arena);
 
 void *dieq_arena_alloc(Dieq_Arena *arena, dieq_uisz size);
@@ -51,6 +53,8 @@ typedef struct {
 } Dieq_Pool;
 
 bool dieq_pool_init(Dieq_Pool *pool, dieq_uisz item_size, dieq_uisz capacity);
+
+bool dieq_pool_init_from_buffer(Dieq_Pool *pool, void *buf, dieq_uisz buf_len, dieq_uisz item_size);
 
 void dieq_pool_deinit(Dieq_Pool *pool);
 
@@ -193,7 +197,7 @@ bool dieq__node_exists(void *n) {
 void *dieq_alloc(dieq_uisz size) {
   void *space = dieq__find_space(sizeof(Dieq__Block_Header) + size);
   if (space == NULL) return NULL;
-  
+
   Dieq__Block_Header *header = (Dieq__Block_Header*)space;
   if (dieq__global_head == NULL) dieq__global_head = (void*)header;
   dieq_uisz total_size = header->size;
@@ -249,6 +253,16 @@ bool dieq_arena_init(Dieq_Arena *arena, dieq_uisz capacity) {
   return true;
 }
 
+bool dieq_arena_init_from_buffer(Dieq_Arena *arena, void *buf, dieq_uisz buf_len) {
+  if (buf == NULL || buf_len == 0) return false;
+
+  *arena = (Dieq_Arena) {
+    .buf = buf,
+    .idx = 0,
+    .cap = buf_len,
+  };
+}
+
 void *dieq_arena_alloc(Dieq_Arena *arena, dieq_uisz size) {
   size = dieq__align_forward(size, sizeof(void*));
   if (arena->idx + size > arena->cap) return NULL;
@@ -277,17 +291,21 @@ typedef struct {
   void *next;
 } Dieq__Pool_Item_Header;
 
+void dieq__pool_setup_headers(dieq_uisz single, void *base, void *end) {
+  for (void *p = base; p < end; p += single) {
+    Dieq__Pool_Item_Header *h = (Dieq__Pool_Item_Header*)p;
+    void *next = p + single;
+    h->next = next >= end ? NULL : next;
+  }
+}
+
 bool dieq_pool_init(Dieq_Pool *pool, dieq_uisz item_size, dieq_uisz capacity) {
   if (capacity == 0 || item_size == 0) return false;
   dieq_uisz single = dieq__align_forward(sizeof(Dieq__Pool_Item_Header) + item_size, sizeof(void*));
   dieq_uisz bytes_count = single * capacity;
   void *buf = dieq_alloc(bytes_count);
   void *end = buf + bytes_count;
-  for (void *p = buf; p < end; p += single) {
-    Dieq__Pool_Item_Header *h = (Dieq__Pool_Item_Header*)p;
-    void *next = p + single;
-    h->next = next >= end ? NULL : next;
-  }
+  dieq__pool_setup_headers(single, buf, end);
 
   *pool = (Dieq_Pool) {
     .buf = buf,
@@ -296,6 +314,22 @@ bool dieq_pool_init(Dieq_Pool *pool, dieq_uisz item_size, dieq_uisz capacity) {
     .cap = capacity,
   };
 
+  return true;
+}
+
+bool dieq_pool_init_from_buffer(Dieq_Pool *pool, void *buf, dieq_uisz buf_len, dieq_uisz item_size) {
+  dieq_uisz single = dieq__align_forward(sizeof(Dieq__Pool_Item_Header) + item_size, sizeof(void*));
+  dieq_uisz capacity = buf_len / single;
+  if (capacity == 0 || item_size == 0) return false;
+
+  dieq__pool_setup_headers(single, buf, buf + (capacity * single));
+
+  *pool = (Dieq_Pool) {
+    .buf = buf,
+    .item_size = item_size,
+    .free_list_head = buf,
+    .cap = capacity,
+  };
   return true;
 }
 
@@ -328,13 +362,10 @@ void dieq_pool_release(Dieq_Pool *pool, void *item) {
 }
 
 void dieq_pool_clear(Dieq_Pool *pool) {
-  dieq_uisz bytes_count = pool->item_size * pool->cap;
+  dieq_uisz single = dieq__align_forward(sizeof(Dieq__Pool_Item_Header) + pool->item_size, sizeof(void*));
+  dieq_uisz bytes_count = single * pool->cap;
   void *end = pool->buf + bytes_count;
-  for (void *p = pool->buf; p < end; p += single) {
-    Dieq__Pool_Item_Header *h = (Dieq__Pool_Item_Header*)p;
-    void *next = p + single;
-    h->next = next >= end ? NULL : next;
-  }
+  dieq__pool_setup_headers(single, pool->buf, end);
   pool->free_list_head = pool->buf;
 }
 
