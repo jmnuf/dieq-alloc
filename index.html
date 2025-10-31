@@ -1,0 +1,52 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <link rel="icon" type="image/svg" href="./favicon.svg" />
+    <title>Dieq Allocator</title>
+    <script type="module" src="./main.js"></script>
+    <style>
+      *, *::before, *::after {
+        margin: 0;
+        padding: 0;
+        box-sizing: border-box;
+      }
+      p {
+        padding-top: 0.15rem;
+        padding-bottom: 0.5rem;
+      }
+      h1,h2,h3,h4 {
+        padding-bottom: 0.5rem;
+      }
+      body, #app {
+        display: flex;
+        flex-direction: column;
+        justify-content: center;
+        align-items: center;
+      }
+      ol {
+        list-style-type: none;
+      }
+      #lists-grid {
+        display: grid;
+        gap: 1rem;
+        grid-template-columns: repeat(4, minmax(0, 1fr));
+      }
+      #lists-grid > * {
+        padding: 0.5rem;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+      }
+    </style>
+  </head>
+  <body>
+    <h1>Dieq Allocator</h1>
+    <p>
+      A simple allocator written for exploration and learning purposes. <br />
+      It maps and keeps track of memory sections through a Linked List.
+    </p>
+    <div id="app"></div>
+  </body>
+</html>
