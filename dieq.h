@@ -15,12 +15,6 @@
 typedef __SIZE_TYPE__ dieq_uisz;
 typedef unsigned char dieq_byte;
 
-typedef struct {
-  dieq_byte *buf;
-  dieq_uisz idx;
-  dieq_uisz cap;
-} Dieq_Arena;
-
 void *dieq_mem_set(void *ptr, dieq_byte b, dieq_uisz count);
 void *dieq_mem_cpy(void *restrict dst, void *restrict src, dieq_uisz count);
 
@@ -33,6 +27,12 @@ void dieq_free(void *ptr);
 void *dieq_realloc(void *ptr, dieq_uisz new_size);
 
 
+typedef struct {
+  dieq_byte *buf;
+  dieq_uisz idx;
+  dieq_uisz cap;
+} Dieq_Arena;
+
 bool dieq_arena_init(Dieq_Arena *arena, dieq_uisz capacity);
 
 void dieq_arena_deinit(Dieq_Arena *arena);
@@ -42,6 +42,27 @@ void *dieq_arena_alloc(Dieq_Arena *arena, dieq_uisz size);
 dieq_uisz dieq_arena_save_point(Dieq_Arena *arena);
 
 void dieq_arena_restore_point(Dieq_Arena *arena, dieq_uisz save_point);
+
+typedef struct {
+  void *buf;
+  void *free_list_head;
+  dieq_uisz item_size;
+  dieq_uisz cap;
+} Dieq_Pool;
+
+bool dieq_pool_init(Dieq_Pool *pool, dieq_uisz item_size, dieq_uisz capacity);
+
+void dieq_pool_deinit(Dieq_Pool *pool);
+
+void *dieq_pool_request(Dieq_Pool *pool);
+
+void dieq_pool_release(Dieq_Pool *pool, void *item);
+
+void dieq_pool_clear(Dieq_Pool *pool);
+
+dieq_uisz dieq_pool_count_free_nodes(Dieq_Pool *pool);
+
+dieq_uisz dieq_pool_count_used_nodes(Dieq_Pool *pool);
 
 #endif // _DIEQ_H
 
@@ -250,5 +271,86 @@ void dieq_arena_deinit(Dieq_Arena *arena) {
   arena->idx = 0;
   arena->cap = 0;
 }
+
+
+typedef struct {
+  void *next;
+} Dieq__Pool_Item_Header;
+
+bool dieq_pool_init(Dieq_Pool *pool, dieq_uisz item_size, dieq_uisz capacity) {
+  if (capacity == 0 || item_size == 0) return false;
+  dieq_uisz single = dieq__align_forward(sizeof(Dieq__Pool_Item_Header) + item_size, sizeof(void*));
+  dieq_uisz bytes_count = single * capacity;
+  void *buf = dieq_alloc(bytes_count);
+  void *end = buf + bytes_count;
+  for (void *p = buf; p < end; p += single) {
+    Dieq__Pool_Item_Header *h = (Dieq__Pool_Item_Header*)p;
+    void *next = p + single;
+    h->next = next >= end ? NULL : next;
+  }
+
+  *pool = (Dieq_Pool) {
+    .buf = buf,
+    .item_size = item_size,
+    .free_list_head = buf,
+    .cap = capacity,
+  };
+
+  return true;
+}
+
+void dieq_pool_deinit(Dieq_Pool *pool) {
+  dieq_free(pool->buf);
+  pool->buf = NULL;
+  pool->free_list_head = NULL;
+  pool->item_size = 0;
+  pool->cap = 0;
+}
+
+void *dieq_pool_request(Dieq_Pool *pool) {
+  if (pool->free_list_head == NULL) return NULL;
+  void *data = pool->free_list_head + sizeof(Dieq__Pool_Item_Header);
+  Dieq__Pool_Item_Header *h = (Dieq__Pool_Item_Header*)pool->free_list_head;
+  pool->free_list_head = h->next;
+  return data;
+}
+
+void dieq_pool_release(Dieq_Pool *pool, void *item) {
+  void *head = item - sizeof(Dieq__Pool_Item_Header);
+  if (pool->free_list_head == NULL) {
+    pool->free_list_head = head;
+    return;
+  }
+
+  Dieq__Pool_Item_Header *h = (Dieq__Pool_Item_Header*)head;
+  h->next = pool->free_list_head;
+  pool->free_list_head = head;
+}
+
+void dieq_pool_clear(Dieq_Pool *pool) {
+  dieq_uisz bytes_count = pool->item_size * pool->cap;
+  void *end = pool->buf + bytes_count;
+  for (void *p = pool->buf; p < end; p += single) {
+    Dieq__Pool_Item_Header *h = (Dieq__Pool_Item_Header*)p;
+    void *next = p + single;
+    h->next = next >= end ? NULL : next;
+  }
+  pool->free_list_head = pool->buf;
+}
+
+dieq_uisz dieq_pool_count_free_nodes(Dieq_Pool *pool) {
+  dieq_uisz count = 0;
+  Dieq__Pool_Item_Header *node = (Dieq__Pool_Item_Header*)pool->free_list_head;
+  while (node) {
+    node = (Dieq__Pool_Item_Header*)node->next;
+    count++;
+  }
+  return count;
+}
+
+dieq_uisz dieq_pool_count_used_nodes(Dieq_Pool *pool) {
+  return pool->cap - dieq_pool_count_free_nodes(pool);
+}
+
 
 #endif // DIEQ_IMPLEMENTATION
