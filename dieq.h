@@ -262,8 +262,8 @@ bool dieq_arena_init(Dieq_Arena *arena, dieq_uisz capacity) {
   dieq_mem_set(arena, 0, sizeof(*arena));
   arena->buf = buf;
   arena->cap = capacity;
-  arean->allocator.alloc = dieq_alloc;
-  arean->allocator.free = dieq_free;
+  arena->allocator.alloc = dieq_alloc;
+  arena->allocator.free = dieq_free;
 
   return true;
 }
@@ -278,7 +278,7 @@ bool dieq_arena_init_with_allocator(Dieq_Arena *arena, dieq_uisz capacity, Dieq_
   dieq_mem_set(arena, 0, sizeof(*arena));
   arena->buf = buf;
   arena->cap = capacity;
-  arean->allocator = allocator;
+  arena->allocator = allocator;
 
   return true;
 }
