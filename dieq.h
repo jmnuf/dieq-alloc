@@ -261,6 +261,7 @@ bool dieq_arena_init_from_buffer(Dieq_Arena *arena, void *buf, dieq_uisz buf_len
     .idx = 0,
     .cap = buf_len,
   };
+  return true;
 }
 
 void *dieq_arena_alloc(Dieq_Arena *arena, dieq_uisz size) {
