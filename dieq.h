@@ -254,6 +254,9 @@ void *dieq_realloc(void *old_ptr, dieq_uisz new_size) {
   return new_ptr;
 }
 
+void dieq__no_op_allocator_free(void *data) {
+  (void)data;
+}
 
 bool dieq_arena_init(Dieq_Arena *arena, dieq_uisz capacity) {
   void *buf = dieq_alloc(capacity);
@@ -289,6 +292,8 @@ bool dieq_arena_init_from_buffer(Dieq_Arena *arena, void *buf, dieq_uisz buf_len
   dieq_mem_set(arena, 0, sizeof(*arena));
   arena->buf = buf;
   arena->cap = buf_len;
+  arena->allocator.free = dieq__no_op_allocator_free;
+
   return true;
 }
 
@@ -384,6 +389,7 @@ bool dieq_pool_init_from_buffer(Dieq_Pool *pool, void *buf, dieq_uisz buf_len, d
   pool->buf = buf;
   pool->item_size = item_size;
   pool->cap = capacity;
+  pool->allocator.free = dieq__no_op_allocator_free;
 
   return true;
 }
