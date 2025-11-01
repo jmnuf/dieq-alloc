@@ -387,6 +387,7 @@ bool dieq_pool_init_from_buffer(Dieq_Pool *pool, void *buf, dieq_uisz buf_len, d
 
   dieq_mem_set(pool, 0, sizeof(*pool));
   pool->buf = buf;
+  pool->free_list_head = buf;
   pool->item_size = item_size;
   pool->cap = capacity;
   pool->allocator.free = dieq__no_op_allocator_free;
