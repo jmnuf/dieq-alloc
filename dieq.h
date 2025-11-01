@@ -274,6 +274,7 @@ bool dieq_arena_init(Dieq_Arena *arena, dieq_uisz capacity) {
 
 bool dieq_arena_init_with_allocator(Dieq_Arena *arena, dieq_uisz capacity, Dieq_Allocator allocator) {
   if (allocator.alloc == NULL) return false;
+  if (allocator.free == NULL) return false;
 
   void *buf = allocator.alloc(capacity);
   if (buf == NULL) return false;
@@ -359,6 +360,7 @@ bool dieq_pool_init_with_allocator(Dieq_Pool *pool, dieq_uisz item_size, dieq_ui
   if (item_size == 0) return false;
   if (capacity == 0) return false;
   if (allocator.alloc == NULL) return false;
+  if (allocator.free == NULL) return false;
 
   dieq_uisz single = dieq__align_forward(sizeof(Dieq__Pool_Item_Header) + item_size, sizeof(void*));
   dieq_uisz bytes_count = single * capacity;
