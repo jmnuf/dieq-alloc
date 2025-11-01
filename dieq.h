@@ -350,6 +350,29 @@ bool dieq_pool_init(Dieq_Pool *pool, dieq_uisz item_size, dieq_uisz capacity) {
   return true;
 }
 
+bool dieq_pool_init_with_allocator(Dieq_Pool *pool, dieq_uisz item_size, dieq_uisz capacity, Dieq_Allocator allocator) {
+  if (item_size == 0) return false;
+  if (capacity == 0) return false;
+  if (allocator.alloc == NULL) return false;
+
+  dieq_uisz single = dieq__align_forward(sizeof(Dieq__Pool_Item_Header) + item_size, sizeof(void*));
+  dieq_uisz bytes_count = single * capacity;
+
+  void *buf = allocator.alloc(bytes_count);
+  if (buf == NULL) return false;
+
+  dieq__pool_setup_headers(single, buf, buf + bytes_count);
+
+  dieq_mem_set(pool, 0, sizeof(*pool));
+  pool->buf = buf;
+  pool->item_size = item_size;
+  pool->free_list_head = buf;
+  pool->cap = capacity;
+  pool->allocator = allocator;
+
+  return true;
+}
+
 bool dieq_pool_init_from_buffer(Dieq_Pool *pool, void *buf, dieq_uisz buf_len, dieq_uisz item_size) {
   dieq_uisz single = dieq__align_forward(sizeof(Dieq__Pool_Item_Header) + item_size, sizeof(void*));
   dieq_uisz capacity = buf_len / single;
